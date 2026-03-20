@@ -43,18 +43,14 @@ function App() {
             <h1 className="text-xl font-bold tracking-tight">SAGIRACING</h1>
             <p className="text-xs text-[#8B949E]">Elétricos seminovos · Neiva</p>
           </div>
-          <div className="flex gap-2">
-            <a href={whatsappUrl} target="_blank" rel="noopener">
-              <Button size="sm" className="bg-[#25D366] hover:bg-[#20bd5a] text-white font-semibold">
-                WhatsApp
-              </Button>
-            </a>
-            <a href={messengerUrl} target="_blank" rel="noopener">
-              <Button size="sm" className="bg-[#2DDAB5] hover:bg-[#26c4a1] text-[#0D1117] font-semibold">
-                Messenger
-              </Button>
-            </a>
-          </div>
+          <a href="tel:+351258373486">
+            <Button size="sm" className="bg-white hover:bg-gray-100 text-[#0D1117] font-bold flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+              </svg>
+              Ligar
+            </Button>
+          </a>
         </div>
       </header>
 
@@ -63,11 +59,10 @@ function App() {
         <div className="max-w-xl">
           <p className="text-[#2DDAB5] font-semibold text-sm tracking-wider uppercase mb-3">Stock disponível · {vehicles.length} viaturas</p>
           <h2 className="text-4xl md:text-5xl font-bold leading-tight mb-4">
-            Elétricos desde<br />
-            <span className="text-[#2DDAB5]">{formatPrice(13450)}</span>
+            Elétricos Seminovos
           </h2>
           <p className="text-[#8B949E] text-lg mb-8 leading-relaxed">
-            Seminovos com poucos km e garantia real de 18 meses.
+            Poucos km e garantia real de 18 meses.
             <br />16 anos de experiência. Retoma do seu usado.
           </p>
           <div className="flex gap-3 flex-wrap">
