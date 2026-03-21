@@ -4,7 +4,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const PASS = process.env.ADMIN_PASS || 'Sagiracing2026#';
+  const PASS = 'Sagiracing2026#';
   const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
   const REPO = 'rafapt18/sagiracing-landing';
   const FILE_PATH = 'public/sold.json';
@@ -42,8 +42,10 @@ export default async function handler(req, res) {
 
   // POST
   if (req.method === 'POST') {
-    const { password, vehicleId, action, edits } = req.body;
-    if (password !== PASS) return res.status(401).json({ error: 'Password incorreta' });
+    let body = req.body;
+    if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = {}; } }
+    const { password, vehicleId, action, edits } = body;
+    if (password !== PASS) return res.status(401).json({ error: 'Password incorreta: ' + typeof password });
 
     try {
       const { content: current, sha } = await getFile();
