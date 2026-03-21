@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 
-const vehicles = [
+const allVehicles = [
   { brand: "Renault", model: "Zoe Intens 50 c/ Bateria".trim(), price: 13450, year: 2021, km: 60000, cv: 109, color: "Branco", battery: "50 kWh", warranty: "18 meses", highlight: "Garantia 18 meses", img: "https://cloud.whc.pt/subscribers/323/vehicles/3084784396999e08d9d99a956985958.webp?w=1024", url: "https://sagiracing.pt/carros-eletricos-usados-viana-do-castelo/63895/renault-zoe-c-bateria-intens-50" },
   { brand: "Citroën", model: "ë-C4 50 kWh Feel Pack".trim(), price: 16490, year: 2021, km: 39000, cv: 136, color: "Verde", battery: "50 kWh", warranty: "18 meses", highlight: "Cor Verde exclusiva", img: "https://cloud.whc.pt/subscribers/323/vehicles/104439930069a32e9b86d42320233761.webp?w=1024", url: "https://sagiracing.pt/carros-eletricos-usados-viana-do-castelo/64404/citroen-e-c4-50-kwh-feel-pack" },
   { brand: "Citroën", model: "ë-C4 50 kWh Feel Pack".trim(), price: 17950, year: 2022, km: 52000, cv: 136, color: "Cinzento", battery: "50 kWh", warranty: "18 meses", highlight: "Teto panorâmico · Navegação", img: "https://cloud.whc.pt/subscribers/323/vehicles/21472031256997557640939845624733.webp?w=1024", url: "https://sagiracing.pt/carros-eletricos-usados-viana-do-castelo/63749/citroen-e-c4-50-kwh-feel-pack" },
@@ -25,8 +25,136 @@ const whatsappMsg = encodeURIComponent("Olá! Vi o vosso stock de elétricos e g
 const whatsappUrl = `https://wa.me/351969172360?text=${whatsappMsg}`
 const messengerUrl = "https://m.me/379244668597942"
 
+function AdminPage() {
+  const [password, setPassword] = useState('')
+  const [loggedIn, setLoggedIn] = useState(false)
+  const [soldList, setSoldList] = useState<string[]>([])
+  const [loading, setLoading] = useState<string | null>(null)
+  const [msg, setMsg] = useState('')
+
+  useEffect(() => {
+    fetch('/api/update-vehicle').then(r => r.json()).then(d => setSoldList(d.sold || [])).catch(() => {})
+  }, [])
+
+  const handleLogin = () => {
+    if (password === 'Sagiracing2026#') {
+      setLoggedIn(true)
+      setMsg('')
+    } else {
+      setMsg('Password incorreta')
+    }
+  }
+
+  const toggleSold = async (v: typeof allVehicles[0]) => {
+    const id = v.url.split('/').filter(Boolean).pop() || ''
+    const isSold = soldList.includes(id)
+    setLoading(id)
+    setMsg('')
+    try {
+      const res = await fetch('/api/update-vehicle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: 'Sagiracing2026#', vehicleId: id, action: isSold ? 'unsell' : 'sell' })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setSoldList(data.sold)
+        setMsg(`${v.brand} ${v.model} — ${isSold ? 'reposto' : 'marcado como vendido'}. A atualizar site (~30s)...`)
+      } else {
+        setMsg('Erro: ' + (data.error || 'desconhecido'))
+      }
+    } catch {
+      setMsg('Erro de rede')
+    }
+    setLoading(null)
+  }
+
+  if (!loggedIn) {
+    return (
+      <div className="min-h-screen bg-[#0D1117] text-white flex items-center justify-center">
+        <div className="bg-[#161B22] border border-white/10 rounded-xl p-8 w-full max-w-sm">
+          <h1 className="text-xl font-bold mb-1">SAGIRACING</h1>
+          <p className="text-[#8B949E] text-sm mb-6">Painel de administração</p>
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleLogin()}
+            className="w-full bg-[#0D1117] border border-white/20 rounded-lg px-4 py-3 text-white mb-4 focus:outline-none focus:border-[#2DDAB5]"
+          />
+          <button onClick={handleLogin} className="w-full bg-[#2DDAB5] text-[#0D1117] font-bold rounded-lg py-3 hover:bg-[#26c4a1]">
+            Entrar
+          </button>
+          {msg && <p className="text-red-400 text-sm mt-3">{msg}</p>}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0D1117] text-white">
+      <header className="border-b border-white/10 bg-[#0D1117]">
+        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold">SAGIRACING — Admin</h1>
+            <p className="text-[#8B949E] text-sm">Gerir stock · Marcar vendidos</p>
+          </div>
+          <a href="/">
+            <Button size="sm" variant="outline" className="border-white/20 text-white hover:bg-white/10">Ver site</Button>
+          </a>
+        </div>
+      </header>
+      {msg && (
+        <div className="max-w-4xl mx-auto px-4 pt-4">
+          <div className="bg-[#2DDAB5]/10 border border-[#2DDAB5]/30 rounded-lg px-4 py-3 text-sm text-[#2DDAB5]">{msg}</div>
+        </div>
+      )}
+      <div className="max-w-4xl mx-auto px-4 py-6 space-y-3">
+        {allVehicles.map((v, i) => {
+          const id = v.url.split('/').filter(Boolean).pop() || ''
+          const isSold = soldList.includes(id)
+          return (
+            <div key={i} className={`flex items-center gap-4 p-4 rounded-xl border ${isSold ? 'bg-red-950/30 border-red-500/30' : 'bg-[#161B22] border-white/[0.06]'}`}>
+              <img src={v.img} alt="" className="w-20 h-14 object-cover rounded-lg" />
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-sm">{v.brand} {v.model}</p>
+                <p className="text-[#8B949E] text-xs">{v.year} · {formatKm(v.km)} · {formatPrice(v.price)}</p>
+              </div>
+              <button
+                onClick={() => toggleSold(v)}
+                disabled={loading === id}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold shrink-0 transition-colors ${
+                  isSold
+                    ? 'bg-green-600 hover:bg-green-500 text-white'
+                    : 'bg-red-600 hover:bg-red-500 text-white'
+                } ${loading === id ? 'opacity-50' : ''}`}
+              >
+                {loading === id ? '...' : isSold ? 'Repor' : 'Vendido'}
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function App() {
+  const isAdmin = window.location.pathname === '/admin'
+  const [soldList, setSoldList] = useState<string[]>([])
   const [sort, setSort] = useState<'price' | 'year' | 'km'>('price')
+
+  useEffect(() => {
+    fetch('/sold.json').then(r => r.json()).then(d => setSoldList(d.sold || [])).catch(() => {})
+  }, [])
+
+  if (isAdmin) return <AdminPage />
+
+  const vehicles = allVehicles.filter(v => {
+    const id = v.url.split('/').filter(Boolean).pop() || ''
+    return !soldList.includes(id)
+  })
 
   const sorted = [...vehicles].sort((a, b) => {
     if (sort === 'price') return a.price - b.price
