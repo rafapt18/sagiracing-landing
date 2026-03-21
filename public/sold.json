@@ -1,1 +1,11 @@
-{"sold":[]}
+{
+  "sold": [],
+  "edits": {
+    "citroen-e-c4-50-kwh-feel-pack": {
+      "price": 17950,
+      "km": 52000,
+      "year": 2022
+    }
+  },
+  "deleted": []
+}
