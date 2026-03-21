@@ -25,47 +25,90 @@ const whatsappMsg = encodeURIComponent("Olá! Vi o vosso stock de elétricos e g
 const whatsappUrl = `https://wa.me/351969172360?text=${whatsappMsg}`
 const messengerUrl = "https://m.me/379244668597942"
 
+type VehicleData = typeof allVehicles[0]
+type AdminState = { sold: string[]; edits: Record<string, Partial<VehicleData>>; deleted: string[] }
+
+function getVehicleId(v: VehicleData) {
+  return v.url.split('/').filter(Boolean).pop() || ''
+}
+
 function AdminPage() {
   const [password, setPassword] = useState('')
   const [loggedIn, setLoggedIn] = useState(false)
-  const [soldList, setSoldList] = useState<string[]>([])
+  const [state, setState] = useState<AdminState>({ sold: [], edits: {}, deleted: [] })
   const [loading, setLoading] = useState<string | null>(null)
   const [msg, setMsg] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    fetch('/api/update-vehicle').then(r => r.json()).then(d => setSoldList(d.sold || [])).catch(() => {})
+    fetch('/api/update-vehicle').then(r => r.json()).then(d => setState({
+      sold: d.sold || [], edits: d.edits || {}, deleted: d.deleted || []
+    })).catch(() => {})
   }, [])
 
   const handleLogin = () => {
-    if (password === 'Sagiracing2026#') {
-      setLoggedIn(true)
-      setMsg('')
-    } else {
-      setMsg('Password incorreta')
-    }
+    if (password === 'Sagiracing2026#') { setLoggedIn(true); setMsg('') }
+    else setMsg('Password incorreta')
   }
 
-  const toggleSold = async (v: typeof allVehicles[0]) => {
-    const id = v.url.split('/').filter(Boolean).pop() || ''
-    const isSold = soldList.includes(id)
-    setLoading(id)
+  const apiCall = async (body: object) => {
     setMsg('')
-    try {
-      const res = await fetch('/api/update-vehicle', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: 'Sagiracing2026#', vehicleId: id, action: isSold ? 'unsell' : 'sell' })
-      })
-      const data = await res.json()
-      if (data.success) {
-        setSoldList(data.sold)
-        setMsg(`${v.brand} ${v.model} — ${isSold ? 'reposto' : 'marcado como vendido'}. A atualizar site (~30s)...`)
-      } else {
-        setMsg('Erro: ' + (data.error || 'desconhecido'))
-      }
-    } catch {
-      setMsg('Erro de rede')
+    const res = await fetch('/api/update-vehicle', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: 'Sagiracing2026#', ...body })
+    })
+    const data = await res.json()
+    if (data.success) {
+      setState({ sold: data.sold || [], edits: data.edits || {}, deleted: data.deleted || [] })
+      return true
     }
+    setMsg('Erro: ' + (data.error || 'desconhecido'))
+    return false
+  }
+
+  const toggleSold = async (v: VehicleData) => {
+    const id = getVehicleId(v)
+    const isSold = state.sold.includes(id)
+    setLoading(id)
+    const ok = await apiCall({ vehicleId: id, action: isSold ? 'unsell' : 'sell' })
+    if (ok) setMsg(`${v.brand} ${v.model} — ${isSold ? 'reposto' : 'marcado como vendido'}. A atualizar (~30s)...`)
+    setLoading(null)
+  }
+
+  const deleteVehicle = async (v: VehicleData) => {
+    const id = getVehicleId(v)
+    if (!confirm(`Eliminar ${v.brand} ${v.model} do site?`)) return
+    setLoading(id)
+    const ok = await apiCall({ vehicleId: id, action: 'delete' })
+    if (ok) setMsg(`${v.brand} ${v.model} eliminado. A atualizar (~30s)...`)
+    setLoading(null)
+  }
+
+  const startEdit = (v: VehicleData) => {
+    const id = getVehicleId(v)
+    const edits = state.edits[id] || {}
+    setEditingId(id)
+    setEditForm({
+      price: String(edits.price ?? v.price),
+      km: String(edits.km ?? v.km),
+      year: String(edits.year ?? v.year),
+      highlight: String(edits.highlight ?? v.highlight),
+    })
+  }
+
+  const saveEdit = async (v: VehicleData) => {
+    const id = getVehicleId(v)
+    setLoading(id)
+    const edits: Record<string, number | string> = {}
+    if (editForm.price && Number(editForm.price) !== v.price) edits.price = Number(editForm.price)
+    if (editForm.km && Number(editForm.km) !== v.km) edits.km = Number(editForm.km)
+    if (editForm.year && Number(editForm.year) !== v.year) edits.year = Number(editForm.year)
+    if (editForm.highlight && editForm.highlight !== v.highlight) edits.highlight = editForm.highlight
+    if (Object.keys(edits).length === 0) { setEditingId(null); setLoading(null); return }
+    const ok = await apiCall({ vehicleId: id, action: 'edit', edits })
+    if (ok) setMsg(`${v.brand} ${v.model} atualizado. A atualizar (~30s)...`)
+    setEditingId(null)
     setLoading(null)
   }
 
@@ -75,34 +118,28 @@ function AdminPage() {
         <div className="bg-[#161B22] border border-white/10 rounded-xl p-8 w-full max-w-sm">
           <h1 className="text-xl font-bold mb-1">SAGIRACING</h1>
           <p className="text-[#8B949E] text-sm mb-6">Painel de administração</p>
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleLogin()}
-            className="w-full bg-[#0D1117] border border-white/20 rounded-lg px-4 py-3 text-white mb-4 focus:outline-none focus:border-[#2DDAB5]"
-          />
-          <button onClick={handleLogin} className="w-full bg-[#2DDAB5] text-[#0D1117] font-bold rounded-lg py-3 hover:bg-[#26c4a1]">
-            Entrar
-          </button>
+          <input type="password" placeholder="Password" value={password}
+            onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleLogin()}
+            className="w-full bg-[#0D1117] border border-white/20 rounded-lg px-4 py-3 text-white mb-4 focus:outline-none focus:border-[#2DDAB5]" />
+          <button onClick={handleLogin} className="w-full bg-[#2DDAB5] text-[#0D1117] font-bold rounded-lg py-3 hover:bg-[#26c4a1]">Entrar</button>
           {msg && <p className="text-red-400 text-sm mt-3">{msg}</p>}
         </div>
       </div>
     )
   }
 
+  const visibleVehicles = allVehicles.filter(v => !state.deleted.includes(getVehicleId(v)))
+  const deletedVehicles = allVehicles.filter(v => state.deleted.includes(getVehicleId(v)))
+
   return (
     <div className="min-h-screen bg-[#0D1117] text-white">
-      <header className="border-b border-white/10 bg-[#0D1117]">
+      <header className="border-b border-white/10 bg-[#0D1117] sticky top-0 z-40">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold">SAGIRACING — Admin</h1>
-            <p className="text-[#8B949E] text-sm">Gerir stock · Marcar vendidos</p>
+            <p className="text-[#8B949E] text-sm">Gerir stock · Editar · Vendidos</p>
           </div>
-          <a href="/">
-            <Button size="sm" variant="outline" className="border-white/20 text-white hover:bg-white/10">Ver site</Button>
-          </a>
+          <a href="/"><Button size="sm" variant="outline" className="border-white/20 text-white hover:bg-white/10">Ver site</Button></a>
         </div>
       </header>
       {msg && (
@@ -111,56 +148,119 @@ function AdminPage() {
         </div>
       )}
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-3">
-        {allVehicles.map((v, i) => {
-          const id = v.url.split('/').filter(Boolean).pop() || ''
-          const isSold = soldList.includes(id)
+        {visibleVehicles.map((v, i) => {
+          const id = getVehicleId(v)
+          const isSold = state.sold.includes(id)
+          const edits = state.edits[id] || {}
+          const displayV = { ...v, ...edits }
+          const isEditing = editingId === id
           return (
-            <div key={i} className={`flex items-center gap-4 p-4 rounded-xl border ${isSold ? 'bg-red-950/30 border-red-500/30' : 'bg-[#161B22] border-white/[0.06]'}`}>
-              <img src={v.img} alt="" className="w-20 h-14 object-cover rounded-lg" />
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-sm">{v.brand} {v.model}</p>
-                <p className="text-[#8B949E] text-xs">{v.year} · {formatKm(v.km)} · {formatPrice(v.price)}</p>
+            <div key={i} className={`p-4 rounded-xl border ${isSold ? 'bg-red-950/30 border-red-500/30' : 'bg-[#161B22] border-white/[0.06]'}`}>
+              <div className="flex items-center gap-4">
+                <img src={v.img} alt="" className="w-20 h-14 object-cover rounded-lg shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm">{v.brand} {v.model}</p>
+                  <p className="text-[#8B949E] text-xs">{displayV.year} · {formatKm(displayV.km as number)} · {formatPrice(displayV.price as number)}</p>
+                  {isSold && <span className="text-red-400 text-xs font-bold">VENDIDO</span>}
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={() => isEditing ? saveEdit(v) : startEdit(v)}
+                    className="px-3 py-2 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white">
+                    {isEditing ? 'Guardar' : 'Editar'}
+                  </button>
+                  <button onClick={() => toggleSold(v)} disabled={loading === id}
+                    className={`px-3 py-2 rounded-lg text-xs font-semibold ${isSold ? 'bg-green-600 hover:bg-green-500' : 'bg-amber-600 hover:bg-amber-500'} text-white ${loading === id ? 'opacity-50' : ''}`}>
+                    {loading === id ? '...' : isSold ? 'Repor' : 'Vendido'}
+                  </button>
+                  <button onClick={() => deleteVehicle(v)} disabled={loading === id}
+                    className="px-3 py-2 rounded-lg text-xs font-semibold bg-red-700 hover:bg-red-600 text-white">
+                    Eliminar
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={() => toggleSold(v)}
-                disabled={loading === id}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold shrink-0 transition-colors ${
-                  isSold
-                    ? 'bg-green-600 hover:bg-green-500 text-white'
-                    : 'bg-red-600 hover:bg-red-500 text-white'
-                } ${loading === id ? 'opacity-50' : ''}`}
-              >
-                {loading === id ? '...' : isSold ? 'Repor' : 'Vendido'}
-              </button>
+              {isEditing && (
+                <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <div>
+                    <label className="text-[#8B949E] text-xs">Preço (€)</label>
+                    <input type="number" value={editForm.price} onChange={e => setEditForm({ ...editForm, price: e.target.value })}
+                      className="w-full bg-[#0D1117] border border-white/20 rounded px-3 py-2 text-sm text-white" />
+                  </div>
+                  <div>
+                    <label className="text-[#8B949E] text-xs">Km</label>
+                    <input type="number" value={editForm.km} onChange={e => setEditForm({ ...editForm, km: e.target.value })}
+                      className="w-full bg-[#0D1117] border border-white/20 rounded px-3 py-2 text-sm text-white" />
+                  </div>
+                  <div>
+                    <label className="text-[#8B949E] text-xs">Ano</label>
+                    <input type="number" value={editForm.year} onChange={e => setEditForm({ ...editForm, year: e.target.value })}
+                      className="w-full bg-[#0D1117] border border-white/20 rounded px-3 py-2 text-sm text-white" />
+                  </div>
+                  <div>
+                    <label className="text-[#8B949E] text-xs">Destaque</label>
+                    <input type="text" value={editForm.highlight} onChange={e => setEditForm({ ...editForm, highlight: e.target.value })}
+                      className="w-full bg-[#0D1117] border border-white/20 rounded px-3 py-2 text-sm text-white" />
+                  </div>
+                  <button onClick={() => setEditingId(null)} className="col-span-2 md:col-span-4 text-[#8B949E] text-xs hover:text-white py-1">Cancelar</button>
+                </div>
+              )}
             </div>
           )
         })}
       </div>
+      {deletedVehicles.length > 0 && (
+        <div className="max-w-4xl mx-auto px-4 pb-6">
+          <p className="text-[#8B949E] text-sm mb-3">Eliminados</p>
+          <div className="space-y-2">
+            {deletedVehicles.map((v, i) => {
+              const id = getVehicleId(v)
+              return (
+                <div key={i} className="flex items-center gap-4 p-3 rounded-lg border border-white/5 bg-[#161B22]/50 opacity-60">
+                  <p className="flex-1 text-sm line-through">{v.brand} {v.model} — {formatPrice(v.price)}</p>
+                  <button onClick={async () => { setLoading(id); await apiCall({ vehicleId: id, action: 'undelete' }); setLoading(null) }}
+                    className="px-3 py-1 rounded text-xs bg-white/10 hover:bg-white/20 text-white">Restaurar</button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 function App() {
   const isAdmin = window.location.pathname === '/admin'
-  const [soldList, setSoldList] = useState<string[]>([])
+  const [state, setState] = useState<AdminState>({ sold: [], edits: {}, deleted: [] })
   const [sort, setSort] = useState<'price' | 'year' | 'km'>('price')
 
   useEffect(() => {
-    fetch('/sold.json').then(r => r.json()).then(d => setSoldList(d.sold || [])).catch(() => {})
+    fetch('/sold.json').then(r => r.json()).then(d => setState({
+      sold: d.sold || [], edits: d.edits || {}, deleted: d.deleted || []
+    })).catch(() => {})
   }, [])
 
   if (isAdmin) return <AdminPage />
 
-  const vehicles = allVehicles.filter(v => {
-    const id = v.url.split('/').filter(Boolean).pop() || ''
-    return !soldList.includes(id)
-  })
+  // Apply edits and filter deleted
+  const vehicles = allVehicles
+    .filter(v => !state.deleted.includes(getVehicleId(v)))
+    .map(v => {
+      const id = getVehicleId(v)
+      const edits = state.edits[id]
+      return edits ? { ...v, ...edits } as VehicleData : v
+    })
 
-  const sorted = [...vehicles].sort((a, b) => {
+  // Sort: available first, then sold
+  const available = vehicles.filter(v => !state.sold.includes(getVehicleId(v)))
+  const sold = vehicles.filter(v => state.sold.includes(getVehicleId(v)))
+
+  const sortFn = (a: VehicleData, b: VehicleData) => {
     if (sort === 'price') return a.price - b.price
     if (sort === 'year') return b.year - a.year
     return a.km - b.km
-  })
+  }
+
+  const sorted = [...available.sort(sortFn), ...sold.sort(sortFn)]
 
   return (
     <div className="min-h-screen bg-[#0D1117] text-white">
@@ -185,7 +285,7 @@ function App() {
       {/* Hero */}
       <section className="max-w-6xl mx-auto px-4 pt-12 pb-10">
         <div className="max-w-xl">
-          <p className="text-[#2DDAB5] font-semibold text-sm tracking-wider uppercase mb-3">Stock disponível · {vehicles.length} viaturas</p>
+          <p className="text-[#2DDAB5] font-semibold text-sm tracking-wider uppercase mb-3">Stock disponível · {available.length} viaturas</p>
           <h2 className="text-4xl md:text-5xl font-bold leading-tight mb-4">
             Elétricos Seminovos
           </h2>
@@ -213,7 +313,7 @@ function App() {
       {/* Sort bar */}
       <section className="max-w-6xl mx-auto px-4 py-5">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <p className="text-[#8B949E] text-sm">{vehicles.length} veículos disponíveis</p>
+          <p className="text-[#8B949E] text-sm">{available.length} veículos disponíveis</p>
           <div className="flex gap-2">
             {(['price', 'year', 'km'] as const).map(s => (
               <button
@@ -232,23 +332,31 @@ function App() {
       <section className="max-w-6xl mx-auto px-4 pb-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {sorted.map((v, i) => {
+            const id = getVehicleId(v)
+            const isSold = state.sold.includes(id)
             const carMsg = encodeURIComponent(`Olá! Tenho interesse no ${v.brand} ${v.model} (${v.year}) por ${formatPrice(v.price)}. Podem dar mais informações?`)
             return (
-              <Card key={i} className="bg-[#161B22] border-white/[0.06] overflow-hidden group hover:border-[#2DDAB5]/40 transition-all duration-300">
+              <Card key={i} className={`overflow-hidden group transition-all duration-300 ${isSold ? 'bg-[#161B22]/60 border-red-500/20 opacity-75' : 'bg-[#161B22] border-white/[0.06] hover:border-[#2DDAB5]/40'}`}>
                 <a href={v.url} target="_blank" rel="noopener" className="block">
                   <div className="relative aspect-[16/10] overflow-hidden bg-[#0D1117]">
                     <img
                       src={v.img}
                       alt={`${v.brand} ${v.model}`}
-                      className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
+                      className={`w-full h-full object-cover transition-transform duration-500 ${isSold ? 'grayscale' : 'group-hover:scale-[1.03]'}`}
                       loading="lazy"
                     />
-                    <div className="absolute top-3 left-3">
-                      <Badge className="bg-[#2DDAB5] text-[#0D1117] font-bold text-sm hover:bg-[#2DDAB5] px-3">
-                        {formatPrice(v.price)}
-                      </Badge>
-                    </div>
-                    {v.year >= 2024 && (
+                    {isSold ? (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                        <span className="bg-red-600 text-white font-bold text-lg px-6 py-2 rounded-lg tracking-wider">VENDIDO</span>
+                      </div>
+                    ) : (
+                      <div className="absolute top-3 left-3">
+                        <Badge className="bg-[#2DDAB5] text-[#0D1117] font-bold text-sm hover:bg-[#2DDAB5] px-3">
+                          {formatPrice(v.price)}
+                        </Badge>
+                      </div>
+                    )}
+                    {!isSold && v.year >= 2024 && (
                       <div className="absolute top-3 right-3">
                         <Badge variant="outline" className="border-white/30 text-white text-xs bg-black/40 backdrop-blur-sm">
                           {v.year}
@@ -258,26 +366,30 @@ function App() {
                   </div>
                 </a>
                 <CardContent className="p-4">
-                  <h3 className="font-bold text-base mb-0.5 text-white">{v.brand} {v.model}</h3>
-                  <p className="text-[#2DDAB5] text-sm mb-3">{v.highlight}</p>
+                  <h3 className={`font-bold text-base mb-0.5 ${isSold ? 'text-[#8B949E] line-through' : 'text-white'}`}>{v.brand} {v.model}</h3>
+                  {!isSold && <p className="text-[#2DDAB5] text-sm mb-3">{v.highlight}</p>}
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-[#8B949E] mb-4">
                     <span>{v.year}</span>
                     <span>{formatKm(v.km)}</span>
                     <span>{v.cv} cv</span>
                     <span>{v.battery}</span>
                   </div>
-                  <div className="flex gap-2">
-                    <a href={`https://wa.me/351969172360?text=${carMsg}`} target="_blank" rel="noopener" className="flex-1">
-                      <Button className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white text-sm font-semibold h-9">
-                        WhatsApp
-                      </Button>
-                    </a>
-                    <a href={messengerUrl} target="_blank" rel="noopener" className="flex-1">
-                      <Button className="w-full bg-[#2DDAB5] hover:bg-[#26c4a1] text-[#0D1117] text-sm font-semibold h-9">
-                        Messenger
-                      </Button>
-                    </a>
-                  </div>
+                  {isSold ? (
+                    <p className="text-red-400/80 text-sm font-medium">Este veículo já foi vendido</p>
+                  ) : (
+                    <div className="flex gap-2">
+                      <a href={`https://wa.me/351969172360?text=${carMsg}`} target="_blank" rel="noopener" className="flex-1">
+                        <Button className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white text-sm font-semibold h-9">
+                          WhatsApp
+                        </Button>
+                      </a>
+                      <a href={messengerUrl} target="_blank" rel="noopener" className="flex-1">
+                        <Button className="w-full bg-[#2DDAB5] hover:bg-[#26c4a1] text-[#0D1117] text-sm font-semibold h-9">
+                          Messenger
+                        </Button>
+                      </a>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )
@@ -298,7 +410,7 @@ function App() {
               <p className="text-[#8B949E] text-sm mt-1">Meses de garantia</p>
             </div>
             <div>
-              <p className="text-3xl font-bold text-[#2DDAB5]">{vehicles.length}</p>
+              <p className="text-3xl font-bold text-[#2DDAB5]">{available.length}</p>
               <p className="text-[#8B949E] text-sm mt-1">Elétricos em stock</p>
             </div>
             <div>
