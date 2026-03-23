@@ -24,7 +24,7 @@ function formatKm(km: number) {
 
 const whatsappMsg = encodeURIComponent("Olá! Vi o vosso stock de elétricos e gostaria de saber mais informações.")
 const whatsappUrl = `https://wa.me/351969172360?text=${whatsappMsg}`
-const messengerUrl = "https://m.me/379244668597942"
+const messengerUrl = "https://m.me/379244668597942?text=" + encodeURIComponent("Olá! Vi o vosso stock de elétricos e gostaria de saber mais informações.")
 
 function trackEvent(event: string, data?: Record<string, unknown>) {
   if (typeof window !== 'undefined' && (window as any).fbq) {
@@ -343,6 +343,7 @@ function App() {
             const id = getVehicleId(v)
             const isSold = state.sold.includes(id)
             const carMsg = encodeURIComponent(`Olá! Tenho interesse no ${v.brand} ${v.model} (${v.year}) por ${formatPrice(v.price)}. Podem dar mais informações?`)
+            const carMsgUrl = "https://m.me/379244668597942?text=" + encodeURIComponent(`Olá! Tenho interesse no ${v.brand} ${v.model} (${v.year}) por ${formatPrice(v.price)}. Podem dar mais informações?`)
             return (
               <Card key={i} className={`overflow-hidden group transition-all duration-300 ${isSold ? 'bg-[#161B22]/60 border-red-500/20 opacity-75' : 'bg-[#161B22] border-white/[0.06] hover:border-[#2DDAB5]/40'}`}>
                 <a href={v.url} target="_blank" rel="noopener" className="block">
@@ -391,7 +392,7 @@ function App() {
                           WhatsApp
                         </Button>
                       </a>
-                      <a href={messengerUrl} target="_blank" rel="noopener" className="flex-1" onClick={() => trackEvent('Contact', {content_name: v.brand + ' ' + v.model, content_category: 'Messenger', value: v.price, currency: 'EUR'})}>
+                      <a href={carMsgUrl} target="_blank" rel="noopener" className="flex-1" onClick={() => trackEvent('Contact', {content_name: v.brand + ' ' + v.model, content_category: 'Messenger', value: v.price, currency: 'EUR'})}>
                         <Button className="w-full bg-[#2DDAB5] hover:bg-[#26c4a1] text-[#0D1117] text-sm font-semibold h-9">
                           Messenger
                         </Button>
