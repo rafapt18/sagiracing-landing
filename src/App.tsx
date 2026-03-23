@@ -30,6 +30,46 @@ function trackEvent(event: string, data?: Record<string, unknown>) {
   if (typeof window !== 'undefined' && (window as any).fbq) {
     (window as any).fbq('track', event, data)
   }
+  // Also save to local analytics
+  trackAnalytics(event, data)
+}
+
+function trackAnalytics(event: string, data?: Record<string, unknown>) {
+  try {
+    const key = 'sagi_analytics'
+    const stored = JSON.parse(localStorage.getItem(key) || '{}')
+    const today = new Date().toISOString().slice(0, 10)
+    if (!stored[today]) stored[today] = { views: {}, clicks: {}, pageviews: 0, contacts: { whatsapp: 0, messenger: 0, phone: 0 } }
+    const day = stored[today]
+
+    if (event === 'PageView') {
+      day.pageviews++
+    } else if (event === 'ViewContent' && data?.content_name) {
+      const car = data.content_name as string
+      day.views[car] = (day.views[car] || 0) + 1
+    } else if (event === 'Contact' && data?.content_category) {
+      const cat = (data.content_category as string).toLowerCase()
+      if (cat.includes('whatsapp')) day.contacts.whatsapp++
+      if (cat.includes('messenger')) day.contacts.messenger++
+      if (cat.includes('phone')) day.contacts.phone++
+      if (data.content_name) {
+        const car = data.content_name as string
+        day.clicks[car] = (day.clicks[car] || 0) + 1
+      }
+    }
+
+    // Keep only last 30 days
+    const keys = Object.keys(stored).sort()
+    while (keys.length > 30) { delete stored[keys.shift()!] }
+    localStorage.setItem(key, JSON.stringify(stored))
+
+    // Send to API for aggregated data
+    fetch('/api/analytics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event, data, timestamp: Date.now() })
+    }).catch(() => {})
+  } catch {}
 }
 
 type VehicleData = typeof allVehicles[0]
@@ -48,11 +88,14 @@ function AdminPage() {
   const [msg, setMsg] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Record<string, string>>({})
+  const [analytics, setAnalytics] = useState<any>(null)
+  const [showAnalytics, setShowAnalytics] = useState(false)
 
   useEffect(() => {
     fetch('/api/update-vehicle').then(r => r.json()).then(d => setState({
       sold: d.sold || [], edits: d.edits || {}, deleted: d.deleted || []
     })).catch(() => {})
+    fetch('/api/analytics').then(r => r.json()).then(setAnalytics).catch(() => {})
   }, [])
 
   const handleLogin = () => {
@@ -155,6 +198,109 @@ function AdminPage() {
           <div className="bg-[#2DDAB5]/10 border border-[#2DDAB5]/30 rounded-lg px-4 py-3 text-sm text-[#2DDAB5]">{msg}</div>
         </div>
       )}
+
+      {/* Analytics Dashboard */}
+      <div className="max-w-4xl mx-auto px-4 pt-6">
+        <button onClick={() => setShowAnalytics(!showAnalytics)} className="w-full text-left bg-[#161B22] border border-white/10 rounded-lg p-4 hover:border-[#2DDAB5]/40 transition">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-bold">📊 Analytics</h2>
+            <span className="text-[#8B949E] text-sm">{showAnalytics ? '▲ fechar' : '▼ abrir'}</span>
+          </div>
+        </button>
+        {showAnalytics && analytics && (
+          <div className="mt-4 space-y-4">
+            {/* Pageviews */}
+            <div className="bg-[#161B22] border border-white/10 rounded-lg p-4">
+              <h3 className="font-semibold text-[#2DDAB5] mb-3">Visitas por dia</h3>
+              <div className="space-y-1">
+                {Object.entries(analytics.pageviews || {}).sort().reverse().slice(0, 14).map(([day, count]: [string, any]) => (
+                  <div key={day} className="flex justify-between text-sm">
+                    <span className="text-[#8B949E]">{day}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="bg-[#2DDAB5]/20 h-4 rounded" style={{width: Math.min(200, (count / Math.max(1, ...Object.values(analytics.pageviews || {}).map(Number))) * 200)}} />
+                      <span className="text-white font-mono w-8 text-right">{count}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Most viewed cars */}
+            <div className="bg-[#161B22] border border-white/10 rounded-lg p-4">
+              <h3 className="font-semibold text-[#2DDAB5] mb-3">Carros mais vistos (últimos 7 dias)</h3>
+              {(() => {
+                const totals: Record<string, number> = {};
+                const days = Object.keys(analytics.views || {}).sort().reverse().slice(0, 7);
+                days.forEach(d => {
+                  Object.entries(analytics.views[d] || {}).forEach(([car, n]: [string, any]) => {
+                    totals[car] = (totals[car] || 0) + n;
+                  });
+                });
+                const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+                const max = sorted[0]?.[1] || 1;
+                return sorted.map(([car, count]) => (
+                  <div key={car} className="flex justify-between items-center text-sm mb-1">
+                    <span className="text-white truncate max-w-[200px]">{car}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="bg-blue-500/30 h-4 rounded" style={{width: (count / max) * 150}} />
+                      <span className="text-white font-mono w-8 text-right">{count}</span>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+
+            {/* Contacts */}
+            <div className="bg-[#161B22] border border-white/10 rounded-lg p-4">
+              <h3 className="font-semibold text-[#2DDAB5] mb-3">Contactos (últimos 7 dias)</h3>
+              {(() => {
+                let wa = 0, msg = 0, ph = 0;
+                const carClicks: Record<string, number> = {};
+                const days = Object.keys(analytics.contacts || {}).sort().reverse().slice(0, 7);
+                days.forEach(d => {
+                  const c = analytics.contacts[d];
+                  wa += c.whatsapp || 0;
+                  msg += c.messenger || 0;
+                  ph += c.phone || 0;
+                  Object.entries(c.by_car || {}).forEach(([car, n]: [string, any]) => {
+                    carClicks[car] = (carClicks[car] || 0) + n;
+                  });
+                });
+                const sorted = Object.entries(carClicks).sort((a, b) => b[1] - a[1]);
+                return (
+                  <div>
+                    <div className="flex gap-4 mb-4">
+                      <div className="bg-[#25D366]/10 border border-[#25D366]/30 rounded-lg p-3 flex-1 text-center">
+                        <p className="text-2xl font-bold text-[#25D366]">{wa}</p>
+                        <p className="text-xs text-[#8B949E]">WhatsApp</p>
+                      </div>
+                      <div className="bg-[#2DDAB5]/10 border border-[#2DDAB5]/30 rounded-lg p-3 flex-1 text-center">
+                        <p className="text-2xl font-bold text-[#2DDAB5]">{msg}</p>
+                        <p className="text-xs text-[#8B949E]">Messenger</p>
+                      </div>
+                      <div className="bg-white/5 border border-white/20 rounded-lg p-3 flex-1 text-center">
+                        <p className="text-2xl font-bold text-white">{ph}</p>
+                        <p className="text-xs text-[#8B949E]">Ligar</p>
+                      </div>
+                    </div>
+                    {sorted.length > 0 && (
+                      <div>
+                        <p className="text-[#8B949E] text-xs mb-2">Contactos por carro:</p>
+                        {sorted.map(([car, count]) => (
+                          <div key={car} className="flex justify-between text-sm mb-1">
+                            <span className="text-white truncate max-w-[200px]">{car}</span>
+                            <span className="text-[#2DDAB5] font-mono">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+      </div>
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-3">
         {visibleVehicles.map((v, i) => {
           const id = getVehicleId(v)
@@ -245,7 +391,26 @@ function App() {
     fetch('/sold.json').then(r => r.json()).then(d => setState({
       sold: d.sold || [], edits: d.edits || {}, deleted: d.deleted || []
     })).catch(() => {})
+    trackEvent('PageView', {})
   }, [])
+
+  // Track which cars users scroll to see
+  useEffect(() => {
+    const seen = new Set<string>()
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const name = entry.target.getAttribute('data-car')
+          if (name && !seen.has(name)) {
+            seen.add(name)
+            trackEvent('ViewContent', { content_name: name, content_type: 'vehicle' })
+          }
+        }
+      })
+    }, { threshold: 0.5 })
+    document.querySelectorAll('[data-car]').forEach(el => observer.observe(el))
+    return () => observer.disconnect()
+  })
 
   if (isAdmin) return <AdminPage />
 
@@ -345,7 +510,7 @@ function App() {
             const carMsg = encodeURIComponent(`Olá! Tenho interesse no ${v.brand} ${v.model} (${v.year}) por ${formatPrice(v.price)}. Podem dar mais informações?`)
             const carMsgUrl = "https://m.me/379244668597942?text=" + encodeURIComponent(`Olá! Tenho interesse no ${v.brand} ${v.model} (${v.year}) por ${formatPrice(v.price)}. Podem dar mais informações?`)
             return (
-              <Card key={i} className={`overflow-hidden group transition-all duration-300 ${isSold ? 'bg-[#161B22]/60 border-red-500/20 opacity-75' : 'bg-[#161B22] border-white/[0.06] hover:border-[#2DDAB5]/40'}`}>
+              <Card key={i} data-car={`${v.brand} ${v.model}`} className={`overflow-hidden group transition-all duration-300 ${isSold ? 'bg-[#161B22]/60 border-red-500/20 opacity-75' : 'bg-[#161B22] border-white/[0.06] hover:border-[#2DDAB5]/40'}`}>
                 <a href={v.url} target="_blank" rel="noopener" className="block">
                   <div className="relative aspect-[16/10] overflow-hidden bg-[#0D1117]">
                     <img
