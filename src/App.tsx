@@ -26,6 +26,12 @@ const whatsappMsg = encodeURIComponent("Olá! Vi o vosso stock de elétricos e g
 const whatsappUrl = `https://wa.me/351969172360?text=${whatsappMsg}`
 const messengerUrl = "https://m.me/379244668597942"
 
+function trackEvent(event: string, data?: Record<string, unknown>) {
+  if (typeof window !== 'undefined' && (window as any).fbq) {
+    (window as any).fbq('track', event, data)
+  }
+}
+
 type VehicleData = typeof allVehicles[0]
 type AdminState = { sold: string[]; edits: Record<string, Partial<VehicleData>>; deleted: string[] }
 
@@ -380,12 +386,12 @@ function App() {
                     <p className="text-red-400/80 text-sm font-medium">Este veículo já foi vendido</p>
                   ) : (
                     <div className="flex gap-2">
-                      <a href={`https://wa.me/351969172360?text=${carMsg}`} target="_blank" rel="noopener" className="flex-1">
+                      <a href={`https://wa.me/351969172360?text=${carMsg}`} target="_blank" rel="noopener" className="flex-1" onClick={() => trackEvent('Contact', {content_name: v.brand + ' ' + v.model, content_category: 'WhatsApp', value: v.price, currency: 'EUR'})}>
                         <Button className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white text-sm font-semibold h-9">
                           WhatsApp
                         </Button>
                       </a>
-                      <a href={messengerUrl} target="_blank" rel="noopener" className="flex-1">
+                      <a href={messengerUrl} target="_blank" rel="noopener" className="flex-1" onClick={() => trackEvent('Contact', {content_name: v.brand + ' ' + v.model, content_category: 'Messenger', value: v.price, currency: 'EUR'})}>
                         <Button className="w-full bg-[#2DDAB5] hover:bg-[#26c4a1] text-[#0D1117] text-sm font-semibold h-9">
                           Messenger
                         </Button>
@@ -465,7 +471,7 @@ function App() {
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#0D1117]/95 backdrop-blur-md border-t border-white/10 safe-area-pb">
         <div className="max-w-6xl mx-auto px-3 py-2.5 flex gap-2">
           {/* Messenger */}
-          <a href={messengerUrl} target="_blank" rel="noopener" className="flex-1">
+          <a href={messengerUrl} target="_blank" rel="noopener" className="flex-1" onClick={() => trackEvent('Contact', {content_category: 'Messenger_bar'})}>
             <button className="w-full flex items-center justify-center gap-2 bg-[#2DDAB5] hover:bg-[#26c4a1] text-[#0D1117] font-semibold rounded-lg py-3 transition-colors">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 2C6.36 2 2 6.13 2 11.7c0 2.91 1.2 5.42 3.15 7.2V22l2.98-1.64c.84.23 1.73.34 2.87.34 5.64 0 10-4.13 10-9.7S17.64 2 12 2zm1.05 13.02l-2.55-2.72L5.67 15l4.93-5.23 2.55 2.72L17.95 10l-4.9 5.02z"/>
@@ -474,7 +480,7 @@ function App() {
             </button>
           </a>
           {/* Ligar - 30% bigger */}
-          <a href="tel:+351258373486" className="flex-[1.3]">
+          <a href="tel:+351258373486" className="flex-[1.3]" onClick={() => trackEvent('Contact', {content_category: 'Phone_bar'})}>
             <button className="w-full flex items-center justify-center gap-2 bg-white hover:bg-gray-100 text-[#0D1117] font-bold rounded-lg py-3 transition-colors">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
@@ -483,7 +489,8 @@ function App() {
             </button>
           </a>
           {/* WhatsApp */}
-          <a href={whatsappUrl} target="_blank" rel="noopener" className="flex-1">
+          <a href={whatsappUrl} target="_blank" rel="noopener" className="flex-1" onClick={() => trackEvent('Contact', {content_category: 'WhatsApp_bar'})}>
+
             <button className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white font-semibold rounded-lg py-3 transition-colors">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
