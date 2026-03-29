@@ -13,6 +13,7 @@ const allVehicles = [
   { brand: "Renault", model: "Mégane E-Tech EV60 Techno".trim(), price: 26890, year: 2024, km: 42000, cv: 218, color: "Preto", battery: "60 kWh", warranty: "18 meses", highlight: "Navegação · Ano 2024 — como novo", img: "/cars/megane.webp", url: "https://sagiracing.pt/carros-eletricos-usados-viana-do-castelo/64817/renault-megane-e-tech-ev60-techno" },
   { brand: "Tesla", model: "Model Y RWD".trim(), price: 32890, year: 2024, km: 129000, cv: 340, color: "Branco", battery: "60 kWh", warranty: "18 meses", highlight: "Estofos pele · Navegação", img: "/cars/modely.webp", url: "https://sagiracing.pt/carros-eletricos-usados-viana-do-castelo/65355/tesla-model-y-rwd" },
   { brand: "Ford", model: "Mustang Mach-E Standard".trim(), price: 34900, year: 2024, km: 30000, cv: 269, color: "Branco", battery: "50 kWh", warranty: "18 meses + baterias até 2032", highlight: "Garantia baterias até 2032 · Teto panorâmico", img: "/cars/mustang.webp", url: "https://sagiracing.pt/carros-eletricos-usados-viana-do-castelo/59359/ford-mustang-mach-e-standard" },
+  { brand: "Citroën", model: "Jumpy 75 kWh M".trim(), price: 22800, year: 2023, km: 15000, cv: 136, color: "Branco", battery: "75 kWh", warranty: "18 meses", highlight: "Comercial elétrico · IVA dedutível · 15 000 km", img: "/cars/jumpy.webp", url: "https://sagiracing.pt/carros-eletricos-usados-viana-do-castelo/66459/citroen-jumpy-75-kwh-m" },
 ]
 
 function formatPrice(p: number) {
